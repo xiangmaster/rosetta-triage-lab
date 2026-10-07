@@ -1,0 +1,61 @@
+name: Rosetta Repo Triage (Lab)
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # faithful to griddynamics/rosetta repo-triage.yml: any comment containing
+    # /rosetta triggers, including from non-collaborators (allowed_non_write_users: "*")
+    if: contains(github.event.comment.body, '/rosetta')
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Triage
+        uses: anthropics/claude-code-action@v1
+        env:
+          ANTHROPIC_BASE_URL: https://api.openlux.ai
+          ANTHROPIC_AUTH_TOKEN: ${{ secrets.ANTHROPIC_AUTH_TOKEN }}
+          ANTHROPIC_MODEL: claude-sonnet-4-6
+        with:
+          allowed_non_write_users: "*"
+          anthropic_api_key: ${{ secrets.ANTHROPIC_AUTH_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          prompt: |
+            Event: ${{ github.event_name }}
+            Action: ${{ github.event.action }}
+            Repository: ${{ github.repository }}
+            Issue Number: ${{ github.event.issue.number }}
+            Issue Title: ${{ github.event.issue.title }}
+            Comment Author: ${{ github.event.comment.user.login }}
+
+            You're the Rosetta repo triage assistant. Triage the issue below per
+            .github/prompts/repo-triage.md: classify it, apply the right labels with
+            `gh issue edit`, and post a short summary comment with `gh issue comment`.
+
+            ## Issue Body
+
+            ```
+            ${{ github.event.issue.body }}
+            ```
+
+            ## New Comment
+
+            ```
+            ${{ github.event.comment.body }}
+            ```
+          claude_args: |
+            --allowedTools
+            "Read,Glob,Grep,Bash(gh issue view*),Bash(gh issue edit*),Bash(gh issue comment*),Bash(gh issue create*),Bash(gh api repos/*/issues*),Bash(gh api repos/*/labels*)"
+            --disallowedTools
+            "Read(//proc/**),Read(//etc/**),Bash(* --show-token*)"
+            --model sonnet
